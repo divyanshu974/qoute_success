@@ -26,7 +26,8 @@ LOKI_URL = "https://logs-prod-042.grafana.net"
 LOKI_INSTANCE_ID = "1660827"
 
 DUNE_TABLE_NAME = "haze_quote_success_6h"
-DUNE_IS_PRIVATE = False
+DUNE_IS_PRIVATE = True   # requires a Dune Enterprise plan; silently
+                         # stays public on lower tiers
 
 CACHE_PATH = Path("data/buckets.csv")
 
@@ -173,10 +174,10 @@ def upload_to_dune(api_key):
         "table_name": DUNE_TABLE_NAME,
         "description": "Quote success rate by 6h UTC bucket (haze-aggregator-api, app_id 120)",
         "data": CACHE_PATH.read_text(),
-        "is_private": TRUE,
+        "is_private": DUNE_IS_PRIVATE,
     }
     resp = requests.post(
-        "https://api.dune.com/api/v1/table/upload/csv",
+        "https://api.dune.com/api/v1/uploads/csv",
         headers={"X-Dune-Api-Key": api_key, "Content-Type": "application/json"},
         json=payload,
         timeout=180,
@@ -184,6 +185,23 @@ def upload_to_dune(api_key):
     if resp.status_code != 200:
         sys.exit(f"dune {resp.status_code}: {resp.text[:500]}")
     print(f"dune: uploaded -> {resp.json()}")
+
+    # Confirm what Dune actually stored. On non-Enterprise plans an
+    # is_private=True request still results in a public table.
+    check = requests.get(
+        "https://api.dune.com/api/v1/uploads",
+        headers={"X-Dune-Api-Key": api_key},
+        params={"limit": 50},
+        timeout=60,
+    )
+    if check.status_code == 200:
+        for t in check.json().get("tables", []):
+            if DUNE_TABLE_NAME in t.get("full_name", ""):
+                state = "PRIVATE" if t.get("is_private") else "PUBLIC"
+                print(f"dune: {t['full_name']} is {state}")
+                if DUNE_IS_PRIVATE and not t.get("is_private"):
+                    print("warning: requested private but table is public - "
+                          "private uploads require a Dune Enterprise plan")
 
 
 def main():
