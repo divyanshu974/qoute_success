@@ -173,7 +173,7 @@ def upload_to_dune(api_key):
         "table_name": DUNE_TABLE_NAME,
         "description": "Quote success rate by 6h UTC bucket (haze-aggregator-api, app_id 120)",
         "data": CACHE_PATH.read_text(),
-        "is_private": DUNE_IS_PRIVATE,
+        "is_private": TRUE,
     }
     resp = requests.post(
         "https://api.dune.com/api/v1/table/upload/csv",
