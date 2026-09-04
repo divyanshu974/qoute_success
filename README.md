@@ -87,8 +87,20 @@ python sync.py --lookback 8               # and publish to Dune
 
 ## Note on the Dune endpoint
 
-Upload uses `POST /api/v1/table/upload/csv`, which replaces the table on
-every call. If Dune has changed that endpoint or it is gated on your
-plan, swap `upload_to_dune()` for the create-table + insert pair and
-filter to only rows newer than the last upload. The CSV cache is the
-source of truth either way, so nothing is lost if an upload fails.
+Upload uses `POST /api/v1/uploads/csv` (the current path; the older
+`/api/v1/table/upload/csv` is legacy). It replaces the table on every
+call, so re-running never duplicates.
+
+`DUNE_IS_PRIVATE = True` is set in `sync.py`, but **private uploads
+require a Dune Enterprise plan**. On lower tiers the request succeeds and
+the table stays public. After each upload the script reads back
+`GET /api/v1/uploads` and prints whether Dune actually stored the table
+as PRIVATE or PUBLIC, warning if it doesn't match what was requested.
+
+If you're not on Enterprise and the data must not be public, don't
+publish it here — keep `data/buckets.csv` in a private GitHub repo and
+run with `--no-upload`.
+
+Privacy can also be flipped after upload in the web app:
+Settings → Data → three dots next to the dataset → "make table private"
+(same Enterprise requirement applies).
