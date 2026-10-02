@@ -51,16 +51,18 @@ EXCLUDED_USER_KEYS = [
     "42uMDScBpaXjr8o1yEiurGxNWVGvEWDudfgG8Y7khpRQ",
     "Eps3ZgQxmaynGJpWZcJ8xGyWxtabo83rys6ubHKniKZk",
     "GJsPEgv1ZQSUvZWBnWAzqiK1vfg8JkVWhhQUCxbhLkcM",
-    "FkHxUC6PN8gEaJmtqQmmgTkUfFsj9T6GaoYepmH8R7Y8",
-    "Cs9rCEkkr4hJYeSYyBhdeBGeDYEc8T7R3zU3tQ2UR2So"
 ]
+
+# tf is a JSON field, not literal "tf=5m" text in the line, so it is
+# matched as a label after `| json`. If the field sits at a different
+# nesting level, only the label name here needs to change.
+TF_LABEL_FILTER = 'fields_fields_tf="5m"'
 
 BASE = (
     '{container_name="haze-aggregator-api"} '
     '|= `"app_id":"120"` '
-    '|= `tf=5m` '
     + "".join(f"!= `userPublicKey={k}` " for k in EXCLUDED_USER_KEYS)
-    + '| json | fields_fields_app_id="120"'
+    + '| json | fields_fields_app_id="120" | ' + TF_LABEL_FILTER
 )
 
 SERIES = [
@@ -179,7 +181,7 @@ def upload_to_dune(csv_text, api_key):
     payload = {
         "table_name": DUNE_TABLE_NAME,
         "description": ("Quote success rate by 6h UTC bucket, rolling last "
-                        f"{LOOKBACK_DAYS} days (haze-aggregator-api, app_id 120)"),
+                        f"{LOOKBACK_DAYS} days (haze-aggregator-api, app_id 120, tf=5m)"),
         "data": csv_text,
         "is_private": DUNE_IS_PRIVATE,
     }
@@ -232,6 +234,12 @@ def main():
         print("dry run, not uploading:\n")
         sys.stdout.write(csv_text)
         return
+
+    # The upload replaces the whole table, so an all-zero week (usually a
+    # filter that matches nothing) would wipe good data. Refuse instead.
+    if not any(r["total_0_60"] or r["total_180_300"] for r in rows):
+        sys.exit("every bucket is empty - check the Loki filters. Not uploading, "
+                 "so the Dune table keeps its last good data.")
     upload_to_dune(csv_text, dune_key)
 
 
