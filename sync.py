@@ -58,6 +58,7 @@ EXCLUDED_USER_KEYS = [
 BASE = (
     '{container_name="haze-aggregator-api"} '
     '|= `"app_id":"120"` '
+    '|= `tf=5m` '
     + "".join(f"!= `userPublicKey={k}` " for k in EXCLUDED_USER_KEYS)
     + '| json | fields_fields_app_id="120"'
 )
