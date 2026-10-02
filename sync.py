@@ -52,6 +52,7 @@ EXCLUDED_USER_KEYS = [
     "Eps3ZgQxmaynGJpWZcJ8xGyWxtabo83rys6ubHKniKZk",
     "GJsPEgv1ZQSUvZWBnWAzqiK1vfg8JkVWhhQUCxbhLkcM",
     "FkHxUC6PN8gEaJmtqQmmgTkUfFsj9T6GaoYepmH8R7Y8",
+    "Cs9rCEkkr4hJYeSYyBhdeBGeDYEc8T7R3zU3tQ2UR2So"
 ]
 
 BASE = (
