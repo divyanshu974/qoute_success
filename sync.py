@@ -53,10 +53,11 @@ EXCLUDED_USER_KEYS = [
     "GJsPEgv1ZQSUvZWBnWAzqiK1vfg8JkVWhhQUCxbhLkcM",
 ]
 
-# tf is a JSON field, not literal "tf=5m" text in the line, so it is
-# matched as a label after `| json`. If the field sits at a different
-# nesting level, only the label name here needs to change.
-TF_LABEL_FILTER = 'fields_fields_tf="5m"'
+# tf is not its own field: it is a space-separated token inside the
+# fields.fields.native_pm string, e.g. "tf=5m q=0 pb outcome=... side=buy".
+# Loki regex label filters are fully anchored, so this matches tf=5m as a
+# whole token anywhere in native_pm, and rejects tf=15m or tf=5ms.
+TF_LABEL_FILTER = 'fields_fields_native_pm=~"(.* )?tf=5m( .*)?"'
 
 BASE = (
     '{container_name="haze-aggregator-api"} '
