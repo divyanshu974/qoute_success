@@ -43,9 +43,10 @@ DUNE_IS_PRIVATE = True   # requires a Dune Enterprise plan; silently
 
 # Saved Dune query listing the 5m markets. It must return one row per
 # outcome mint, covering at least the last 8 days, with these columns:
-#   mint      varchar  base58 SPL mint address
-#   close_ts  bigint   market close time in unix seconds (to_unixtime(...))
-MINTS_QUERY_ID = 8885536       # TODO: set to the saved query's id
+#   mint        varchar    base58 SPL mint address
+#   close_time  timestamp  market close time, UTC
+#               (or close_ts: bigint unix seconds, if you prefer)
+MINTS_QUERY_ID = 8885536
 
 STEP = 6 * 3600          # 21600s divides evenly into 86400, so epoch multiples
                          # land exactly on 00:00 / 06:00 / 12:00 / 18:00 UTC
@@ -135,6 +136,18 @@ def run_dune_query(query_id, api_key, wait_s=600):
         offset = body["next_offset"]
 
 
+def parse_close(r):
+    """Unix seconds from close_ts, or from a close_time timestamp. The Dune
+    API returns timestamps like '2026-10-02 20:35:00.000 UTC'."""
+    if r.get("close_ts") is not None:
+        return int(float(r["close_ts"]))
+    s = str(r.get("close_time") or "").strip().removesuffix(" UTC")
+    dt = datetime.fromisoformat(s)          # raises ValueError if empty/odd
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)  # Dune timestamps are UTC
+    return int(dt.timestamp())
+
+
 def load_5m_markets(api_key):
     """[(close_ts, mint), ...] sorted by close time."""
     rows = run_dune_query(MINTS_QUERY_ID, api_key)
@@ -142,8 +155,8 @@ def load_5m_markets(api_key):
     for r in rows:
         mint = str(r.get("mint") or "").strip()
         try:
-            close_ts = int(float(r["close_ts"]))
-        except (KeyError, TypeError, ValueError):
+            close_ts = parse_close(r)
+        except (TypeError, ValueError):
             bad += 1
             continue
         if not MINT_RE.match(mint):
@@ -151,10 +164,11 @@ def load_5m_markets(api_key):
             continue
         markets.add((close_ts, mint))
     if bad:
-        print(f"warning: skipped {bad} Dune row(s) without a valid mint / close_ts")
+        print(f"warning: skipped {bad} Dune row(s) without a valid mint / close time")
     if not markets:
-        sys.exit(f"Dune query {MINTS_QUERY_ID} returned no usable rows; it must "
-                 "return columns `mint` (base58) and `close_ts` (unix seconds)")
+        cols = sorted(rows[0].keys()) if rows else []
+        sys.exit(f"Dune query {MINTS_QUERY_ID} returned no usable rows (columns seen: "
+                 f"{cols}); it must return `mint` (base58) and `close_time` (timestamp)")
     print(f"dune: {len(markets)} 5m-market mints from query {MINTS_QUERY_ID}")
     return sorted(markets)
 
