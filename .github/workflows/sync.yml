@@ -2,18 +2,20 @@ name: Sync Loki buckets to Dune
 
 on:
   schedule:
-    # 00:10, 06:10, 12:10, 18:10 UTC - ten minutes past each 6h boundary
-    # so late-arriving logs are ingested before the bucket is queried.
-    - cron: "10 0,6,12,18 * * *"
+    # Once a day at 00:10 UTC. Each run pushes the 28 closed 6h buckets
+    # ending at 00:00 UTC, i.e. the last 7 full UTC days. The 10 minutes
+    # give late-arriving logs time to be ingested before the newest
+    # bucket is queried.
+    - cron: "10 0 * * *"
   workflow_dispatch:
     inputs:
-      lookback:
-        description: "How many closed 6h buckets to re-query (use a large number to backfill)"
-        required: false
-        default: "3"
+      dry_run:
+        description: "Print the CSV instead of uploading to Dune"
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: loki-dune-sync
@@ -32,21 +34,8 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Fetch from Loki and publish to Dune
+      - name: Fetch last 7 days from Loki and publish to Dune
         env:
           GLC_TOKEN: ${{ secrets.GLC_TOKEN }}
           DUNE_API_KEY: ${{ secrets.DUNE_API_KEY }}
-          LOOKBACK_BUCKETS: ${{ github.event.inputs.lookback || '3' }}
-        run: python sync.py
-
-      - name: Commit updated cache
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/buckets.csv
-          if git diff --staged --quiet; then
-            echo "no cache changes to commit"
-          else
-            git commit -m "data: buckets through $(date -u +%Y-%m-%dT%H:%MZ)"
-            git push
-          fi
+        run: python sync.py ${{ inputs.dry_run && '--dry-run' || '' }}
