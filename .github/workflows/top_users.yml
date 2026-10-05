@@ -1,0 +1,42 @@
+name: Top users by quote rows
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Days back, in closed 6h UTC buckets (max 7 for 5m markets)"
+        required: false
+        default: "2"
+      top:
+        description: "How many users to print"
+        required: false
+        default: "100"
+      all_markets:
+        description: "Count every market, not only 5m (skips the Dune mint list)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  top-users:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Print top users by row count
+        env:
+          GLC_TOKEN: ${{ secrets.GLC_TOKEN }}
+          DUNE_API_KEY: ${{ secrets.DUNE_API_KEY }}
+          # Passed through env, not inlined, so the inputs can't inject shell.
+          DAYS: ${{ inputs.days }}
+          TOP: ${{ inputs.top }}
+        run: python top_users.py --days "$DAYS" --top "$TOP" ${{ inputs.all_markets && '--all-markets' || '' }}
