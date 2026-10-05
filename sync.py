@@ -72,6 +72,7 @@ EXCLUDED_USER_KEYS = [
     "42uMDScBpaXjr8o1yEiurGxNWVGvEWDudfgG8Y7khpRQ",
     "Eps3ZgQxmaynGJpWZcJ8xGyWxtabo83rys6ubHKniKZk",
     "GJsPEgv1ZQSUvZWBnWAzqiK1vfg8JkVWhhQUCxbhLkcM",
+    "79YZ6utrNtqWUT5a4Yn2jYy9DtzMAHuLyZPoyZ2ydpPh"
 ]
 
 SERIES = [
