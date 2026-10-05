@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Fetch every log line matching the Grafana Logs Drilldown view and save them:
-  out/logs.jsonl  one raw log line per row (lossless)
-  out/logs.csv    the same lines with every JSON field as its own column
+Fetch ALL log lines matching the Grafana Logs Drilldown view (not capped at
+Grafana's 5,000 line limit) and save them raw to out/logs.txt: one log per
+row, newest first like Grafana, as "<UTC timestamp><TAB><raw line>". The raw
+line is written exactly as Loki stores it.
 
 Filters (same as the Drilldown screenshot):
   container_name = haze-aggregator-api
@@ -16,10 +17,7 @@ Env: GLC_TOKEN. Needs only `requests`.
 """
 
 import os
-import re
-import csv
 import sys
-import json
 import argparse
 from datetime import datetime, timezone
 
@@ -40,7 +38,6 @@ QUERY = (
 
 PAGE = 5000          # Grafana Cloud's default max lines per request
 OUT_DIR = "out"
-USER_RE = re.compile(r'userPublicKey["=:\s]+"?([1-9A-HJ-NP-Za-km-z]{32,44})')
 
 
 def to_ns(s):
@@ -95,42 +92,12 @@ def fetch_all(start_ns, end_ns, token):
             cursor, seen_at_cursor = last_ts, at_last
 
 
-def flatten(obj, prefix=""):
-    out = {}
-    for k, v in obj.items():
-        key = f"{prefix}{k}"
-        if isinstance(v, dict):
-            out.update(flatten(v, key + "."))
-        else:
-            out[key] = json.dumps(v) if isinstance(v, list) else v
-    return out
-
-
 def save(entries):
     os.makedirs(OUT_DIR, exist_ok=True)
-    rows, cols = [], set()
-    with open(f"{OUT_DIR}/logs.jsonl", "w") as fh:
-        for ts, line in entries:
-            fh.write(json.dumps({"timestamp_utc": ns_to_str(ts), "line": line}) + "\n")
-            try:
-                parsed = json.loads(line)
-                row = flatten(parsed) if isinstance(parsed, dict) else {"raw": line}
-            except ValueError:
-                row = {"raw": line}
-            m = USER_RE.search(line)
-            row["user_public_key"] = m.group(1) if m else ""
-            row["timestamp_utc"] = ns_to_str(ts)
-            cols.update(row)
-            rows.append(row)
-
-    first = ["timestamp_utc", "user_public_key"]
-    header = first + sorted(cols - set(first))
-    with open(f"{OUT_DIR}/logs.csv", "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=header, restval="")
-        w.writeheader()
-        w.writerows(rows)
-    print(f"saved {len(entries)} lines to {OUT_DIR}/logs.jsonl and {OUT_DIR}/logs.csv "
-          f"({len(header)} columns)")
+    with open(f"{OUT_DIR}/logs.txt", "w", encoding="utf-8", newline="\n") as fh:
+        for ts, line in sorted(entries, reverse=True):      # newest first
+            fh.write(f"{ns_to_str(ts)}\t{line}\n")
+    print(f"saved {len(entries)} raw log lines to {OUT_DIR}/logs.txt")
 
 
 def main():
